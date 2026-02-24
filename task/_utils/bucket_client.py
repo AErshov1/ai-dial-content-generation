@@ -5,7 +5,7 @@ import httpx
 
 
 class DialBucketClient:
-    def __init__(self, api_key: str , base_url: str):
+    def __init__(self, api_key: str, base_url: str):
         self.api_key = api_key
         self.base_url = base_url
         self._bucket_id: str | None = None
@@ -22,7 +22,6 @@ class DialBucketClient:
         if self._client:
             await self._client.aclose()
 
-
     async def _get_bucket(self) -> str:
         if not self._bucket_id:
             response = await self._client.get('/v1/bucket')
@@ -37,7 +36,6 @@ class DialBucketClient:
                 raise ValueError("No appdata or bucket found")
 
         return self._bucket_id
-
 
     async def put_file(
         self, name: str, mime_type: str, content: BytesIO
@@ -55,4 +53,3 @@ class DialBucketClient:
         response = await self._client.get(f"/v1/{url}")
         response.raise_for_status()
         return response.content
-

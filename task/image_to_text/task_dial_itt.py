@@ -10,17 +10,15 @@ from task._models.message import Message
 from task._models.role import Role
 
 
-async def _put_image() -> Attachment:
-    file_name = 'dialx-banner.png'
+async def _put_image(file_name: str = 'dialx-banner.png') -> Attachment:
     image_path = Path(__file__).parent.parent.parent / file_name
-    mime_type_png = 'image/png'
-    # TODO:
-    #  1. Create DialBucketClient
-    #  2. Open image file
-    #  3. Use BytesIO to load bytes of image
-    #  4. Upload file with client
-    #  5. Return Attachment object with title (file name), url and type (mime type)
-    raise NotImplementedError
+    bucket_cli = DialBucketClient(api_key=API_KEY, base_url=DIAL_URL)
+    # load image bytes
+    with open(image_path, 'rb') as f:
+        image_bytes = BytesIO(f.read())
+        return bucket_cli.put_file(name=file_name, mime_type='image/png', content=image_bytes)
+
+    return None
 
 
 def start() -> None:

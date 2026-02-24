@@ -1,4 +1,5 @@
 import asyncio
+import aiofiles
 from datetime import datetime
 
 from task._models.custom_content import Attachment
@@ -7,6 +8,7 @@ from task._utils.bucket_client import DialBucketClient
 from task._utils.model_client import DialModelClient
 from task._models.message import Message
 from task._models.role import Role
+
 
 class Size:
     """
@@ -35,23 +37,41 @@ class Quality:
     standard: str = "standard"
     hd: str = "hd"
 
+
 async def _save_images(attachments: list[Attachment]):
-    # TODO:
-    #  1. Create DIAL bucket client
-    #  2. Iterate through Images from attachments, download them and then save here
-    #  3. Print confirmation that image has been saved locally
-    raise NotImplementedError
+    async with DialBucketClient(api_key=API_KEY, base_url=DIAL_URL) as bucket_client:
+        async def save_img(attachment: Attachment):
+            content = await bucket_client.get_file(attachment.url)
+            filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{
+                attachment.title}.png"
+            async with aiofiles.open(filename, "wb") as f:
+                await f.write(content)
+            print(f"Image {filename} has been saved locally.")
+
+        tasks = [save_img(att)
+                 for att in attachments if hasattr(att, "url") and att.url]
+        await asyncio.gather(*tasks)
 
 
-def start() -> None:
-    # TODO:
-    #  1. Create DialModelClient
-    #  2. Generate image for "Sunny day on Bali"
-    #  3. Get attachments from response and save generated message (use method `_save_images`)
-    #  4. Try to configure the picture for output via `custom_fields` parameter.
-    #    - Documentation: See `custom_fields`. https://dialx.ai/dial_api#operation/sendChatCompletionRequest
-    #  5. Test it with the 'imagegeneration@005' (Google image generation model)
-    raise NotImplementedError
+async def start() -> None:
+    dial_client = DialModelClient(
+        api_key=API_KEY, deployment_name="dall-e-3", endpoint=DIAL_CHAT_COMPLETIONS_ENDPOINT)
+
+    config = dict(
+        size=Size.square,
+        style=Style.vivid,
+        quality=Quality.standard
+    )
+
+    message = Message(
+        role=Role.USER,
+        content="Generate an image of a sunny day on a bich of Black Sea.",
+    )
+    resp = dial_client.get_completion(
+        messages=[message], custom_fields=config)
+    attachments = resp.custom_content.attachments
+    if attachments:
+        await _save_images(attachments)
 
 
-start()
+asyncio.run(start())
