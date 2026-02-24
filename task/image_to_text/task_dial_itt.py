@@ -12,31 +12,28 @@ from task._models.role import Role
 
 async def _put_image(file_name: str = 'dialx-banner.png') -> Attachment:
     image_path = Path(__file__).parent.parent.parent / file_name
-    bucket_cli = DialBucketClient(api_key=API_KEY, base_url=DIAL_URL)
-    # load image bytes
-    with open(image_path, 'rb') as f:
-        image_bytes = BytesIO(f.read())
-        return bucket_cli.put_file(name=file_name, mime_type='image/png', content=image_bytes)
+    async with DialBucketClient(api_key=API_KEY, base_url=DIAL_URL) as bucket_cli:
+      with open(image_path, 'rb') as f:
+          image_bytes = BytesIO(f.read())
+          json = await bucket_cli.put_file(name=file_name, mime_type='image/png', content=image_bytes)
+          return Attachment(title=file_name, type=json['contentType'], url=json['url'])
 
     return None
 
 
-def start() -> None:
+async def start() -> None:
     # TODO:
     #  1. Create DialModelClient
-    #  2. Upload image (use `_put_image` method )
-    #  3. Print attachment to see result
-    #  4. Call chat completion via client with list containing one Message:
-    #    - role: Role.USER
-    #    - content: "What do you see on this picture?"
-    #    - custom_content: CustomContent(attachments=[attachment])
-    #  ---------------------------------------------------------------------------------------------------------------
-    #  Note: This approach uploads the image to DIAL bucket and references it via attachment. The key benefit of this
-    #        approach that we can use Models from different vendors (OpenAI, Google, Anthropic). The DIAL Core
-    #        adapts this attachment to Message content in appropriate format for Model.
-    #  TRY THIS APPROACH WITH DIFFERENT MODELS!
-    #  Optional: Try upload 2+ pictures for analysis
-    raise NotImplementedError
+    dial_client = DialModelClient(api_key=API_KEY, endpoint=DIAL_CHAT_COMPLETIONS_ENDPOINT, deployment_name="gpt-4o")
 
+    attachemnt_task = [_put_image(img) for img in ['dialx-banner.png', '20260224151722_Image.png']]
+    attachements = await asyncio.gather(*attachemnt_task)
+    if not all(attachements):
+        raise Exception("Failed to upload image")
 
-start()
+    print(f"Image(s) uploaded to DIAL bucket. URLs: {[att.url for att in attachements]}")
+    message =  Message(role=Role.USER, content="What do you see on this picture(s)?", custom_content=CustomContent(attachments=attachements))
+    resp_msg = dial_client.get_completion(messages=[message])
+    print(f"Model response: {resp_msg.content}")
+
+asyncio.run(start())
